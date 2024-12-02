@@ -35,6 +35,49 @@ pub fn part1(input: []const u8) !u32 {
     return result;
 }
 
+fn validLevel(level: []u32) bool {
+    const variance: Type = if (level[0] < level[1]) .increasing else .decreasing;
+    for (0..level.len - 1) |i| {
+        if (variance == .increasing and level[i] > level[i + 1] or variance == .decreasing and level[i] < level[i + 1]) {
+            return false;
+        }
+        const dis = if (level[i] > level[i + 1]) level[i] - level[i + 1] else level[i + 1] - level[i];
+        if (dis == 0 or dis > 3) {
+            return false;
+        }
+    }
+    return true;
+}
+
+pub fn part2(input: []const u8) !u32 {
+    var result: u32 = 0;
+    var it = std.mem.tokenizeScalar(u8, input, '\n');
+
+    while (it.next()) |line| {
+        var nums: [10]u32 = undefined;
+        var nums2: [10]u32 = undefined;
+        var j: u8 = 0;
+        var level = std.mem.splitScalar(u8, line, ' ');
+        while (level.next()) |n| {
+            nums[j] = try std.fmt.parseInt(u32, n, 10);
+            j += 1;
+        }
+        if (validLevel(nums[0..j])) {
+            result += 1;
+            continue;
+        }
+        for (0..j + 1) |n| {
+            std.mem.copyForwards(u32, &nums2, nums[0..n]);
+            std.mem.copyForwards(u32, nums2[n..], nums[n + 1 ..]);
+            if (validLevel(nums2[0 .. j - 1])) {
+                result += 1;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -46,6 +89,9 @@ pub fn main() !void {
 
     const part1_result = try part1(input);
     std.debug.print("Part1 result is {}\n", .{part1_result});
+
+    const part2_result = try part2(input);
+    std.debug.print("Part2 result is {}\n", .{part2_result});
 }
 
 const test_input =
@@ -59,4 +105,7 @@ const test_input =
 
 test "Part1 test" {
     try std.testing.expect(try part1(test_input) == 2);
+}
+test "Part2 test" {
+    try std.testing.expect(try part2(test_input) == 4);
 }
