@@ -75,6 +75,31 @@ pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u32 {
     return result;
 }
 
+pub fn part2(allocator: std.mem.Allocator, input: []const u8) !u32 {
+    var map = std.ArrayList([]const u8).init(allocator);
+    defer map.deinit();
+    var height: usize = 0;
+    var width: usize = 0;
+
+    var it = std.mem.tokenizeScalar(u8, input, '\n');
+    while (it.next()) |line| {
+        try map.append(line);
+        height += 1;
+        width = line.len;
+    }
+    var matrix = Matrix(u8){ .buf = map.items, .width = width, .height = height };
+    var result: u32 = 0;
+    for (0..matrix.height - 2) |r| {
+        for (0..matrix.width - 2) |c| {
+            if (matrix.get(r + 1, c + 1) != 'A') continue;
+            const first = matrix.get(r, c) == 'M' and matrix.get(r + 2, c + 2) == 'S' or matrix.get(r, c) == 'S' and matrix.get(r + 2, c + 2) == 'M';
+            const second = matrix.get(r, c + 2) == 'M' and matrix.get(r + 2, c) == 'S' or matrix.get(r, c + 2) == 'S' and matrix.get(r + 2, c) == 'M';
+            if (first and second) result += 1;
+        }
+    }
+    return result;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -83,6 +108,7 @@ pub fn main() !void {
     defer file.close();
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
@@ -99,4 +125,8 @@ const test_input =
 ;
 test "Part 1 test" {
     try std.testing.expect(try part1(std.testing.allocator, test_input) == 18);
+}
+
+test "Part 2 test" {
+    try std.testing.expect(try part2(std.testing.allocator, test_input) == 9);
 }
