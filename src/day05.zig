@@ -1,79 +1,102 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const SplitIterator = std.mem.SplitIterator(u8, .scalar);
 
-pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u32 {
-    var result: u32 = 0;
-    var map = std.AutoHashMap(struct { u8, u8 }, void).init(allocator);
-    defer map.deinit();
+fn parseNumbers(comptime T: type, allocator: Allocator, str: []const u8, sep: u8) ![]T {
+    var list = std.ArrayList(T).init(allocator);
 
-    var it = std.mem.splitScalar(u8, input, '\n');
-    while (it.next()) |line| {
-        if (line.len == 0) break;
-        var nums = std.mem.tokenizeScalar(u8, line, '|');
-        const first = try std.fmt.parseInt(u8, nums.next().?, 10);
-        const second = try std.fmt.parseInt(u8, nums.next().?, 10);
-        try map.put(.{ first, second }, {});
+    var it = std.mem.tokenizeScalar(u8, str, sep);
+    while (it.next()) |raw| {
+        const num = try std.fmt.parseInt(T, raw, 10);
+        try list.append(num);
     }
-    outer: while (it.next()) |line| {
-        if (line.len == 0) break;
-        var list = std.ArrayList(u8).init(allocator);
-        defer list.deinit();
-        var nums = std.mem.tokenizeScalar(u8, line, ',');
-        while (nums.next()) |num| {
-            try list.append(try std.fmt.parseInt(u8, num, 10));
+    return list.toOwnedSlice();
+}
+
+const HashSet = std.AutoHashMap(struct { u8, u8 }, void);
+
+const OrderingRules = struct {
+    rules: HashSet,
+    allocator: Allocator,
+
+    pub fn init(allocator: Allocator) OrderingRules {
+        return .{
+            .allocator = allocator,
+            .rules = HashSet.init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *OrderingRules) void {
+        self.rules.deinit();
+    }
+
+    pub fn read(self: *OrderingRules, it: *SplitIterator) !void {
+        while (it.next()) |line| {
+            if (line.len == 0) return;
+            const nums = try parseNumbers(u8, self.allocator, line, '|');
+            defer self.allocator.free(nums);
+            try self.rules.put(.{ nums[0], nums[1] }, {});
         }
-        for (0..list.items.len - 1) |i| {
-            for (i + 1..list.items.len) |j| {
-                if (!map.contains(.{ list.items[i], list.items[j] })) continue :outer;
+    }
+
+    pub fn valid(self: OrderingRules, nums: []u8) bool {
+        for (0..nums.len - 1) |i| {
+            for (i + 1..nums.len) |j| {
+                if (!self.rules.contains(.{ nums[i], nums[j] })) return false;
             }
         }
-        result += list.items[list.items.len / 2];
+        return true;
+    }
+
+    pub fn fix(self: OrderingRules, nums: []u8) void {
+        for (0..nums.len - 1) |i| {
+            for (i + 1..nums.len) |j| {
+                if (!self.rules.contains(.{ nums[i], nums[j] })) {
+                    const tmp = nums[j];
+                    nums[j] = nums[i];
+                    nums[i] = tmp;
+                }
+            }
+        }
+    }
+};
+
+pub fn part1(allocator: Allocator, input: []const u8) !u32 {
+    var result: u32 = 0;
+    var ordering_rules = OrderingRules.init(allocator);
+    defer ordering_rules.deinit();
+
+    var it = std.mem.splitScalar(u8, input, '\n');
+    try ordering_rules.read(&it);
+
+    while (it.next()) |line| {
+        if (line.len == 0) break;
+        const nums = try parseNumbers(u8, allocator, line, ',');
+        defer allocator.free(nums);
+        if (ordering_rules.valid(nums)) {
+            result += nums[nums.len / 2];
+        }
     }
     return result;
 }
 
-const Map = std.AutoHashMap(struct { u8, u8 }, void);
-
-fn fix(map: Map, list: []u8) void {
-    for (0..list.len - 1) |i| {
-        for (i + 1..list.len) |j| {
-            if (!map.contains(.{ list[i], list[j] })) {
-                const tmp = list[j];
-                list[j] = list[i];
-                list[i] = tmp;
-            }
-        }
-    }
-}
-
-pub fn part2(allocator: std.mem.Allocator, input: []const u8) !u32 {
+pub fn part2(allocator: Allocator, input: []const u8) !u32 {
     var result: u32 = 0;
-    var map = Map.init(allocator);
-    defer map.deinit();
+    var ordering_rules = OrderingRules.init(allocator);
+    defer ordering_rules.deinit();
 
     var it = std.mem.splitScalar(u8, input, '\n');
+    try ordering_rules.read(&it);
+
     while (it.next()) |line| {
         if (line.len == 0) break;
-        var nums = std.mem.tokenizeScalar(u8, line, '|');
-        const first = try std.fmt.parseInt(u8, nums.next().?, 10);
-        const second = try std.fmt.parseInt(u8, nums.next().?, 10);
-        try map.put(.{ first, second }, {});
-    }
-    outer: while (it.next()) |line| {
-        if (line.len == 0) break;
-        var list = std.ArrayList(u8).init(allocator);
-        defer list.deinit();
-        var nums = std.mem.tokenizeScalar(u8, line, ',');
-        while (nums.next()) |num| {
-            try list.append(try std.fmt.parseInt(u8, num, 10));
-        }
-        for (0..list.items.len - 1) |i| {
-            for (i + 1..list.items.len) |j| {
-                if (!map.contains(.{ list.items[i], list.items[j] })) {
-                    fix(map, list.items);
-                    result += list.items[list.items.len / 2];
-                    continue :outer;
-                }
-            }
+
+        const nums = try parseNumbers(u8, allocator, line, ',');
+        defer allocator.free(nums);
+
+        if (!ordering_rules.valid(nums)) {
+            ordering_rules.fix(nums);
+            result += nums[nums.len / 2];
         }
     }
     return result;
