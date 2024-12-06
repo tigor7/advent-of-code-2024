@@ -61,13 +61,19 @@ const Position = struct {
     row: usize,
     col: usize,
 
-    pub fn newPosition(self: *Position, dir: Direction) Position {
+    pub fn newPosition(self: *Position, dir: Direction) !Position {
         var new_row = self.row;
         var new_col = self.col;
         switch (dir) {
-            .up => new_row -= 1,
+            .up => {
+                if (new_row == 0) return error.OutOfBounds;
+                new_row -= 1;
+            },
             .down => new_row += 1,
-            .left => new_col -= 1,
+            .left => {
+                if (new_col == 0) return error.OutOfBounds;
+                new_col -= 1;
+            },
             .right => new_col += 1,
         }
         return .{
@@ -94,7 +100,7 @@ pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u32 {
     }
 
     while (true) {
-        const new_pos = guard_position.newPosition(dir);
+        const new_pos = guard_position.newPosition(dir) catch break;
         if (m.outOfBounds(new_pos.row, new_pos.col)) break;
         if (m.get(new_pos.row, new_pos.col) == '#') {
             dir = switch (dir) {
@@ -114,6 +120,61 @@ pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u32 {
     return result;
 }
 
+const Record = struct { pos: Position, dir: Direction };
+
+pub fn part2(allocator: std.mem.Allocator, input: []const u8) !u32 {
+    var m = try Matrix(u8).from(allocator, input);
+    defer m.deinit();
+    var result: u32 = 0;
+
+    var dir: Direction = .up;
+    var start_position: Position = undefined;
+    for (0..m.height) |r| {
+        for (0..m.width) |c| {
+            if (m.get(r, c) == '^') {
+                start_position = .{ .row = r, .col = c };
+            }
+        }
+    }
+
+    for (0..m.height) |r| {
+        for (0..m.width) |c| {
+            if (r == start_position.row and c == start_position.col) continue;
+            if (m.get(r, c) == '#') continue;
+            var guard_position = start_position;
+            dir = .up;
+            m.set(r, c, '#');
+            var history = std.AutoHashMap(Record, void).init(allocator);
+            defer history.deinit();
+
+            while (true) {
+                const new_pos = guard_position.newPosition(dir) catch break;
+                if (m.outOfBounds(new_pos.row, new_pos.col)) break;
+                if (m.get(new_pos.row, new_pos.col) == '#') {
+                    dir = switch (dir) {
+                        .up => .right,
+                        .down => .left,
+                        .left => .up,
+                        .right => .down,
+                    };
+                    continue;
+                }
+                guard_position = new_pos;
+                if (history.contains(Record{ .pos = new_pos, .dir = dir })) {
+                    result += 1;
+                    break;
+                } else {
+                    try history.put(Record{ .pos = new_pos, .dir = dir }, {});
+                }
+            }
+            m.set(r, c, '.');
+        }
+    }
+    std.debug.print("Result {}\n", .{result});
+
+    return result;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -123,6 +184,7 @@ pub fn main() !void {
 
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
@@ -138,6 +200,10 @@ const test_input =
     \\......#...
 ;
 
-test "Part 1 tes" {
+test "Part 1 test" {
     try std.testing.expect(try part1(std.testing.allocator, test_input) == 41);
+}
+
+test "Part 2 test" {
+    try std.testing.expect(try part2(std.testing.allocator, test_input) == 6);
 }
