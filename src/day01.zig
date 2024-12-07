@@ -1,20 +1,24 @@
 const std = @import("std");
+const parseNumbers = @import("utils.zig").parseNumbers;
+const Allocator = std.mem.Allocator;
 
-pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u64 {
-    var it = std.mem.splitScalar(u8, input, '\n');
+pub fn part1(allocator: Allocator, input: []const u8) !u32 {
     var first = std.ArrayList(u32).init(allocator);
-    defer first.deinit();
     var second = std.ArrayList(u32).init(allocator);
-    defer second.deinit();
-
-    while (it.next()) |line| {
-        var ids = std.mem.tokenizeScalar(u8, line, ' ');
-        if (ids.peek() == null) continue;
-        const first_num = try std.fmt.parseInt(u32, ids.next().?, 10);
-        const second_num = try std.fmt.parseInt(u32, ids.next().?, 10);
-        try first.append(first_num);
-        try second.append(second_num);
+    defer {
+        first.deinit();
+        second.deinit();
     }
+
+    var it = std.mem.tokenizeScalar(u8, input, '\n');
+    while (it.next()) |line| {
+        const nums = try parseNumbers(u32, allocator, line, " ");
+        defer allocator.free(nums);
+
+        try first.append(nums[0]);
+        try second.append(nums[1]);
+    }
+
     std.mem.sort(u32, first.items, {}, comptime std.sort.asc(u32));
     std.mem.sort(u32, second.items, {}, comptime std.sort.asc(u32));
 
@@ -26,20 +30,21 @@ pub fn part1(allocator: std.mem.Allocator, input: []const u8) !u64 {
     return result;
 }
 
-pub fn part2(allocator: std.mem.Allocator, input: []const u8) !u64 {
+pub fn part2(allocator: Allocator, input: []const u8) !u32 {
     var first = std.ArrayList(u32).init(allocator);
-    defer first.deinit();
     var second = std.AutoHashMap(u32, u32).init(allocator);
-    defer second.deinit();
+    defer {
+        first.deinit();
+        second.deinit();
+    }
 
-    var it = std.mem.splitScalar(u8, input, '\n');
+    var it = std.mem.tokenizeScalar(u8, input, '\n');
     while (it.next()) |line| {
-        var ids = std.mem.tokenizeScalar(u8, line, ' ');
-        if (ids.peek() == null) continue;
-        const first_num = try std.fmt.parseInt(u32, ids.next().?, 10);
-        try first.append(first_num);
-        const second_num = try std.fmt.parseInt(u32, ids.next().?, 10);
-        const entry = try second.getOrPut(second_num);
+        const nums = try parseNumbers(u32, allocator, line, " ");
+        defer allocator.free(nums);
+
+        try first.append(nums[0]);
+        const entry = try second.getOrPut(nums[1]);
         if (entry.found_existing) {
             entry.value_ptr.* += 1;
         } else {
@@ -58,16 +63,14 @@ pub fn part2(allocator: std.mem.Allocator, input: []const u8) !u64 {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var file = try std.fs.cwd().openFile("inputs/day01.txt", .{});
+
+    const file = try std.fs.cwd().openFile("inputs/day01.txt", .{});
     defer file.close();
 
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
-    const part1_result = try part1(allocator, input);
-    std.debug.print("Part1 result is {}\n", .{part1_result});
-
-    const part2_result = try part2(allocator, input);
-    std.debug.print("Part2 result is {}\n", .{part2_result});
+    std.debug.print("Part1 result is {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result is {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
