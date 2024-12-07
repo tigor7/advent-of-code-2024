@@ -39,6 +39,45 @@ const Combinations = struct {
     }
 };
 
+const OperatorsExtra = enum { add, multiply, concat };
+
+const CombinationsExtra = struct {
+    current: []OperatorsExtra,
+    allocator: Allocator,
+    last: bool = false,
+    pub fn init(allocator: Allocator, size: usize) !CombinationsExtra {
+        const slice = try allocator.alloc(OperatorsExtra, size);
+        for (0..slice.len) |i| slice[i] = .concat;
+        return .{
+            .current = slice,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: CombinationsExtra) void {
+        self.allocator.free(self.current);
+    }
+
+    pub fn next(self: *CombinationsExtra) ?[]OperatorsExtra {
+        if (self.last) return null;
+        var i = self.current.len - 1;
+        while (i >= 0) : (i -= 1) {
+            if (self.current[i] == .add) {
+                self.current[i] = .multiply;
+                break;
+            } else if (self.current[i] == .multiply) {
+                self.current[i] = .concat;
+                break;
+            }
+            self.current[i] = .add;
+            if (i == 0) break;
+        }
+        for (0..self.current.len) |j| {
+            if (self.current[j] == .add or self.current[j] == .multiply) break;
+        } else self.last = true;
+        return self.current;
+    }
+};
 pub fn part1(allocator: Allocator, input: []const u8) !u64 {
     var result: u64 = 0;
 
@@ -67,6 +106,43 @@ pub fn part1(allocator: Allocator, input: []const u8) !u64 {
     return result;
 }
 
+pub fn part2(allocator: Allocator, input: []const u8) !u64 {
+    var result: u64 = 0;
+
+    var it = std.mem.tokenizeScalar(u8, input, '\n');
+    while (it.next()) |line| {
+        const nums = try parseNumbers(u64, allocator, line, ": ");
+        defer allocator.free(nums);
+        var combs = try CombinationsExtra.init(allocator, nums.len - 2);
+        defer combs.deinit();
+
+        while (combs.next()) |comb| {
+            var sum: u64 = nums[1];
+            for (2..nums.len) |i| {
+                switch (comb[i - 2]) {
+                    .add => {
+                        sum += nums[i];
+                    },
+                    .multiply => {
+                        sum *= nums[i];
+                    },
+                    .concat => {
+                        const slice = try std.fmt.allocPrint(allocator, "{d}{d}", .{ sum, nums[i] });
+                        defer allocator.free(slice);
+                        sum = try std.fmt.parseInt(u64, slice, 10);
+                    },
+                }
+            }
+
+            if (sum == nums[0]) {
+                result += nums[0];
+                break;
+            }
+        }
+    }
+    std.debug.print("Result: {}\n", .{result});
+    return result;
+}
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -76,6 +152,7 @@ pub fn main() !void {
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)}); // took like 30min .-.
 }
 
 const test_input =
@@ -91,4 +168,8 @@ const test_input =
 ;
 test "Part 1 test" {
     try std.testing.expect(try part1(std.testing.allocator, test_input) == 3749);
+}
+
+test "Part 2 test" {
+    try std.testing.expect(try part2(std.testing.allocator, test_input) == 11387);
 }
