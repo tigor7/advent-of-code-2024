@@ -89,6 +89,52 @@ pub fn part1(allocator: Allocator, input: []const u8) !u32 {
     return set.count();
 }
 
+pub fn part2(allocator: Allocator, input: []const u8) !u32 {
+    var m = try Matrix(u8).from(allocator, input);
+
+    var set = std.AutoHashMap(Point, void).init(allocator);
+    defer set.deinit();
+    defer m.deinit();
+
+    for (0..m.height) |r| {
+        for (0..m.width) |c| {
+            if (m.get(r, c) == '.') continue;
+
+            for (r..m.height) |r2| {
+                for (0..m.width) |c2| {
+                    if (r == r2 and c2 <= c) continue;
+                    if (m.get(r, c) != m.get(r2, c2)) continue;
+                    const r_diff: i32 = @intCast(r2 - r);
+                    const c_diff: i32 = @intCast(if (c < c2) c2 - c else c - c2);
+
+                    var i: i32 = 1;
+                    try set.put(Point{ .row = @intCast(r), .col = @intCast(c) }, {});
+                    try set.put(Point{ .row = @intCast(r2), .col = @intCast(c2) }, {});
+                    while (true) : (i += 1) {
+                        const row: i32 = (@as(i32, @intCast(r)) - (r_diff * i));
+                        const col: i32 = if (c < c2) @as(i32, @intCast(c)) - (c_diff * i) else @as(i32, @intCast(c)) + (c_diff * i);
+                        const p1 = Point{ .row = row, .col = col };
+
+                        if (p1.row < 0 or p1.row >= m.height or p1.col < 0 or p1.col >= m.width) break;
+                        try set.put(p1, {});
+                    }
+                    i = 1;
+                    while (true) : (i += 1) {
+                        const row: i32 = (@as(i32, @intCast(r2)) + (r_diff * i));
+                        const col: i32 = if (c < c2) @as(i32, @intCast(c2)) + (c_diff * i) else @as(i32, @intCast(c2)) - (c_diff * i);
+                        const p1 = Point{ .row = row, .col = col };
+
+                        if (p1.row < 0 or p1.row >= m.height or p1.col < 0 or p1.col >= m.width) break;
+                        try set.put(p1, {});
+                    }
+                }
+            }
+        }
+    }
+    std.debug.print("Result: {}\n", .{set.count()});
+    return set.count();
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -98,6 +144,7 @@ pub fn main() !void {
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
@@ -115,6 +162,24 @@ const test_input =
     \\............
 ;
 
+const test_input2 =
+    \\T.........
+    \\...T......
+    \\.T........
+    \\..........
+    \\..........
+    \\..........
+    \\..........
+    \\..........
+    \\..........
+    \\..........
+;
+
 test "Part 1 test" {
     try std.testing.expect(try part1(std.testing.allocator, test_input) == 14);
+}
+
+test "Part 2 test" {
+    try std.testing.expect(try part2(std.testing.allocator, test_input2) == 9);
+    try std.testing.expect(try part2(std.testing.allocator, test_input) == 34);
 }
