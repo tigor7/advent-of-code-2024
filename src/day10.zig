@@ -96,6 +96,40 @@ pub fn part1(allocator: Allocator, input: []const u8) !u64 {
     }
     return result;
 }
+pub fn part2(allocator: Allocator, input: []const u8) !u64 {
+    var m = try Matrix(u8).from(allocator, input);
+    defer m.deinit();
+
+    var result: u64 = 0;
+    for (0..m.height) |r| {
+        for (0..m.width) |c| {
+            if (m.get(r, c) == '0') {
+                var stack = std.ArrayList(Point).init(allocator);
+                defer stack.deinit();
+                try stack.append(Point{ .row = r, .col = c });
+                while (stack.popOrNull()) |p| {
+                    if (m.get(p.row, p.col) == '9') {
+                        result += 1;
+                        continue;
+                    }
+                    if (p.row > 0 and m.get(p.row, p.col) + 1 == m.get(p.row - 1, p.col)) {
+                        try stack.append(Point{ .row = p.row - 1, .col = p.col });
+                    }
+                    if (p.col > 0 and m.get(p.row, p.col) + 1 == m.get(p.row, p.col - 1)) {
+                        try stack.append(Point{ .row = p.row, .col = p.col - 1 });
+                    }
+                    if (p.row < m.height - 1 and m.get(p.row, p.col) + 1 == m.get(p.row + 1, p.col)) {
+                        try stack.append(Point{ .row = p.row + 1, .col = p.col });
+                    }
+                    if (p.col < m.width - 1 and m.get(p.row, p.col) + 1 == m.get(p.row, p.col + 1)) {
+                        try stack.append(Point{ .row = p.row, .col = p.col + 1 });
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -106,6 +140,7 @@ pub fn main() !void {
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
@@ -121,4 +156,7 @@ const test_input =
 
 test "Part 1 test" {
     try std.testing.expect(try part1(std.testing.allocator, test_input) == 36);
+}
+test "Part 2 test" {
+    try std.testing.expect(try part2(std.testing.allocator, test_input) == 81);
 }
