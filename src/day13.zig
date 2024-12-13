@@ -26,6 +26,31 @@ pub fn part1(allocator: Allocator, input: []const u8) !u64 {
     return result;
 }
 
+pub fn part2(allocator: Allocator, input: []const u8) !u64 {
+    var result: u64 = 0;
+    var it = std.mem.splitSequence(u8, input, "\n");
+    while (it.next()) |line| {
+        if (line.len == 0) continue;
+        const a_nums = try parseNumbers(i64, allocator, line, "Button A:XY+,");
+        const b_nums = try parseNumbers(i64, allocator, it.next().?, "Button B:XY+,");
+        const prize_nums = try parseNumbers(i64, allocator, it.next().?, "Prize: XY=,");
+        prize_nums[0] += 10000000000000;
+        prize_nums[1] += 10000000000000;
+        defer {
+            allocator.free(a_nums);
+            allocator.free(b_nums);
+            allocator.free(prize_nums);
+        }
+        const det = a_nums[0] * b_nums[1] - a_nums[1] * b_nums[0];
+
+        const A = @divTrunc(prize_nums[0] * b_nums[1] - prize_nums[1] * b_nums[0], det);
+        const B = @divTrunc(a_nums[0] * prize_nums[1] - a_nums[1] * prize_nums[0], det);
+        if (A * a_nums[0] + B * b_nums[0] == prize_nums[0] and A * a_nums[1] + B * b_nums[1] == prize_nums[1]) {
+            result += @intCast(A * 3 + B);
+        }
+    }
+    return result;
+}
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -35,6 +60,7 @@ pub fn main() !void {
     const input = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
     std.debug.print("Part1 result: {}\n", .{try part1(allocator, input)});
+    std.debug.print("Part2 result: {}\n", .{try part2(allocator, input)});
 }
 
 const test_input =
